@@ -50,7 +50,7 @@ process STAR_INDEX {
 
     script:
     """
-    STAR --runThreadN 3 \\
+    STAR --runThreadN 64 \\
     --runMode genomeGenerate \\
     --genomeDir index \\
     --genomeFastaFiles ${ref_fasta} \\
@@ -62,7 +62,7 @@ process STAR_INDEX {
 
 process STAR_MAPPING {
     publishDir "MAPPING", mode:'copy'
-    cpus 4
+    cpus 80
 
     input:
         tuple val(sampleid), path(read1), path(read2),path(index)
@@ -73,11 +73,31 @@ process STAR_MAPPING {
 
     script:
     """
-    STAR --runThreadN 3 --genomeDir ${index} \\
+    STAR --runThreadN 40 --genomeDir ${index} \\
     --readFilesIn ${read1} ${read2} \\
     --outSAMtype BAM SortedByCoordinate \\
     --outFileNamePrefix ${sampleid} \\
     --readFilesCommand zcat
+    """
+}
+
+process FEATURE_COUNT {
+    publishDir "READ_COUNT", mode: 'copy'
+
+    input:
+        path(bams)
+        path(ref_gtf)
+        val(strand)
+
+    output:
+        path "*"
+
+    script:
+    """
+    featureCounts -T 80 -s ${strand} -p --countReadPairs -t exon \\
+    -g gene_id -Q 10 -a ${ref_gtf} -o gene_count ${bams}
+    
+    multiqc gene_count*
     """
 }
 
@@ -112,6 +132,11 @@ STAR_INDEX(ref_fasta,ref_gtf).set{star_index}
 trimmed.trimmed.map{read1,read2 -> tuple("${read1.getFileName()}".split("_trimmed")[0],read1,read2 ) }
 |combine(star_index.index)|STAR_MAPPING
 |set{bams}
+
+
+bams.bams.collect().set{finalbams}
+
+FEATURE_COUNT (finalbams,ref_gtf,strand)
 
 //Test
 //ref_fasta.view()
