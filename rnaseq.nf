@@ -94,7 +94,7 @@ process FEATURE_COUNT {
 
     script:
     """
-    featureCounts -T 80 -s ${strand} -p --countReadPairs -t exon \\
+    featureCounts -T 60 -s ${strand} -p --countReadPairs -t exon \\
     -g gene_id -Q 10 -a ${ref_gtf} -o gene_count ${bams}
     
     multiqc gene_count*
