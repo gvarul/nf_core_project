@@ -20,6 +20,7 @@ process SALMON_INDEX {
     task.ext.when == null || task.ext.when
 
     script:
+    //argument from command prompt
     def args = task.ext.args?: ''
 
     //get decoy ids from genome, grep - all the lines starts with >, cut - extracts first field (seq_id), saves in decoys.txt 
@@ -76,6 +77,13 @@ process SALMON_INDEX {
     touch salmon/refseq.bin
     touch salmon/seq.bin
     touch salmon/versionInfo.json
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        salmon: \$(echo \$(salmon --version) | sed -e "s/salmon//g")
+    END_VERSIONS
+    """
+
 
 }
 
