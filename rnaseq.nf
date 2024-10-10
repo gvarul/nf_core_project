@@ -62,7 +62,7 @@ process STAR_INDEX {
 
 process STAR_MAPPING {
     publishDir "MAPPING", mode:'copy'
-    cpus 80
+    cpus 96
 
     input:
         tuple val(sampleid), path(read1), path(read2),path(index)
@@ -73,7 +73,7 @@ process STAR_MAPPING {
 
     script:
     """
-    STAR --runThreadN 40 --genomeDir ${index} \\
+    STAR --runThreadN 72 --genomeDir ${index} \\
     --readFilesIn ${read1} ${read2} \\
     --outSAMtype BAM SortedByCoordinate \\
     --outFileNamePrefix ${sampleid} \\
@@ -94,12 +94,13 @@ process FEATURE_COUNT {
 
     script:
     """
-    featureCounts -T 60 -s ${strand} -p --countReadPairs -t exon \\
+    featureCounts -T 64 -s ${strand} -p --countReadPairs -t exon \\
     -g gene_id -Q 10 -a ${ref_gtf} -o gene_count ${bams}
     
     multiqc gene_count*
     """
 }
+
 
 
 workflow{
