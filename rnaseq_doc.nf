@@ -1,28 +1,29 @@
 
-process TRIM_GALORE{
+def samplesheet = file(params.sample_sheet)
 
-    container 'quay.io/biocontainers/trim-galore:0.6.6--0'
+    Channel
+        .from(samplesheet)
+        .splitCsv(header: true)
+        .map { row -> tuple(row.sampleid, file(row.read1), file(row.read2)) }
+        .set { fastq_ch }
 
+process TRIM_GALORE {
     publishDir "TRIMMED", mode: 'copy'
 
     input:
-        tuple val (sampleid), path(reads)
+        tuple val(sampleid), path(read1), path(read2)
 
     output:
-        path "*"
-        path "*trimmed*.fq.gz", emit:trimmed //to lable the files
+        path "*trimmed*.fq.gz", emit: trimmed // Emit the trimmed reads
 
     script:
-    //Trimm anything below 20 Phred Score
+    // Trimm anything below 20 Phred Score
     """
-    trim_galore  --paired --q 20 --gzip --basename ${sampleid}_trimmed ${reads}
+    trim_galore --paired --q 20 --gzip --basename ${sampleid}_trimmed ${read1} ${read2}
     """
 }
 
-process FASTQC{
-
-    container  'quay.io/biocontainers/fastqc:0.11.9--0'
-
+process QC{
     publishDir "QC_REPORT", mode: 'copy'
 
     input:
@@ -42,8 +43,6 @@ process FASTQC{
     """
 }
 
-
-/*
 process STAR_INDEX {
 
     publishDir "REF_INDEX", mode:'copy'
@@ -57,30 +56,28 @@ process STAR_INDEX {
 
     script:
     """
-    STAR --runThreadN 64 \\
+    STAR --runThreadN 3 \\
     --runMode genomeGenerate \\
     --genomeDir index \\
     --genomeFastaFiles ${ref_fasta} \\
     --sjdbGTFfile ${ref_gtf} \\
     --genomeSAindexNbases 12
-
     """
 }
 
 process STAR_MAPPING {
-    publishDir "MAPPING", mode:'copy'
-    cpus 96
+    publishDir "MAPPING", mode: 'copy'
+    cpus 3
 
     input:
-        tuple val(sampleid), path(read1), path(read2),path(index)
-    
+        tuple val(sampleid), path(read1), path(read2), path(index)
+
     output:
-        path "*"
-        path "*.bam", emit:bams
+        path "*.bam", emit: bams
 
     script:
     """
-    STAR --runThreadN 72 --genomeDir ${index} \\
+    STAR --runThreadN 3 --genomeDir ${index} \\
     --readFilesIn ${read1} ${read2} \\
     --outSAMtype BAM SortedByCoordinate \\
     --outFileNamePrefix ${sampleid} \\
@@ -101,24 +98,22 @@ process FEATURE_COUNT {
 
     script:
     """
-    featureCounts -T 64 -s ${strand} -p --countReadPairs -t exon \\
+    featureCounts -T 3 -s ${strand} -p --countReadPairs -t exon \\
     -g gene_id -Q 10 -a ${ref_gtf} -o gene_count ${bams}
     
     multiqc gene_count*
     """
 }
 
-*/
 
-workflow{
+workflow {
 
-// Defining Parameters
+    // Reference Genomes
+    ref_fasta = Channel.fromPath(params.ref_fasta)
+    ref_gtf = Channel.fromPath(params.ref_gtf)
 
-ref_fasta=Channel.fromPath(params.ref_fasta)
-ref_gtf=Channel.fromPath(params.ref_gtf)
-
-fastq_ch=Channel.fromFilePairs(params.reads)
-strand=Channel.of(params.strand)
+    //fastq_ch = Channel.fromFilePairs(params.reads)
+    strand = Channel.of(params.strand)
 
 // Trimminng 
 
@@ -129,10 +124,12 @@ TRIM_GALORE(fastq_ch).set{trimmed}
 
 raw_fastq=fastq_ch.map{it -> it[1]}.flatten().collect()
 trimmed_fastq=trimmed.trimmed.flatten().collect()
-raw_fastq.mix(trimmed_fastq).collect() | FASTQC 
+raw_fastq.mix(trimmed_fastq).collect() | QC 
 
-/*
-// STAR Indexing
+
+
+
+
 STAR_INDEX(ref_fasta,ref_gtf).set{star_index}
 
 trimmed.trimmed.map{read1,read2 -> tuple("${read1.getFileName()}".split("_trimmed")[0],read1,read2 ) }
@@ -149,5 +146,4 @@ FEATURE_COUNT (finalbams,ref_gtf,strand)
 //ref_gtf.view()
 //strand.view()
 //fastq_ch.view()
-*/
 }
