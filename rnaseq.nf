@@ -9,6 +9,7 @@ def samplesheet = file(params.sample_sheet)
 
 process TRIM_GALORE {
     publishDir "TRIMMED", mode: 'copy'
+    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
 
     input:
         tuple val(sampleid), path(read1), path(read2)
@@ -25,6 +26,8 @@ process TRIM_GALORE {
 
 process QC{
     publishDir "QC_REPORT", mode: 'copy'
+    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
+
 
     input:
         path(reads)
@@ -46,6 +49,8 @@ process QC{
 process STAR_INDEX {
 
     publishDir "REF_INDEX", mode:'copy'
+    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
+
 
     input:
         path(ref_fasta)
@@ -67,6 +72,7 @@ process STAR_INDEX {
 
 process STAR_MAPPING {
     publishDir "MAPPING", mode: 'copy'
+    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
     cpus 3
 
     input:
@@ -87,6 +93,8 @@ process STAR_MAPPING {
 
 process FEATURE_COUNT {
     publishDir "READ_COUNT", mode: 'copy'
+    container 'alexgilgal/featurecount:latest' // Adding the container for featureCounts
+
 
     input:
         path(bams)
