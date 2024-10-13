@@ -93,7 +93,7 @@ process STAR_MAPPING {
 
 process FEATURE_COUNT {
     publishDir "READ_COUNT", mode: 'copy'
-    container 'alexgilgal/featurecount:latest' // Adding the container for featureCounts
+    container 'community.wave.seqera.io/library/multiqc_subread:195fdfec27d6a190'
 
 
     input:
