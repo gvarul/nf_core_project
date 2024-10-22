@@ -2,10 +2,10 @@ process SALMON_INDEX {
 
     publishDir "indexed", mode: 'copy'
 
-    conda "${moduleDir}/environment.yml"
+    conda "${moduleDir}/environment.yml"  ### we are not using conda 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/salmon:1.10.1--h7e5ed60_0' :
-        'biocontainers/salmon:1.10.1--h7e5ed60_0' }"
+        'biocontainers/salmon:1.10.1--h7e5ed60_0' }"   ### we should not use singularity 
 
 
     input:
