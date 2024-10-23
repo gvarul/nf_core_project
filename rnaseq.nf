@@ -9,7 +9,9 @@ def samplesheet = file(params.sample_sheet)
 
 process TRIM_GALORE {
     publishDir "TRIMMED", mode: 'copy'
+
     container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
+
 
     input:
         tuple val(sampleid), path(read1), path(read2)
@@ -24,8 +26,30 @@ process TRIM_GALORE {
     """
 }
 
+process TRIM_FASTP {
+
+container 'community.wave.seqera.io/library/fastp:0.23.4--f8cefc1e5f7a782e'
+
+publishDir "TRIMMED", mode:'copy'
+
+input: 
+	tuple val(sampleid), path(read1), path(read2)
+
+output: 
+	path "*"
+	path "*trimmed*.fq.gz", emit:trimmed
+
+script: 
+"""
+fastp -i ${read1} -I ${read2} -o ${sampleid}_trimmed_1.fq.gz -O ${sampleid}_trimmed_2.fq.gz -q 20 -h ${sampleid}_fastp.html
+
+"""
+
+}
+
 process QC{
     publishDir "QC_REPORT", mode: 'copy'
+
     container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
 
 
@@ -49,8 +73,8 @@ process QC{
 process STAR_INDEX {
 
     publishDir "REF_INDEX", mode:'copy'
-    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
 
+    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
 
     input:
         path(ref_fasta)
@@ -72,7 +96,9 @@ process STAR_INDEX {
 
 process STAR_MAPPING {
     publishDir "MAPPING", mode: 'copy'
+    
     container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
+
     cpus 3
 
     input:
@@ -93,6 +119,7 @@ process STAR_MAPPING {
 
 process FEATURE_COUNT {
     publishDir "READ_COUNT", mode: 'copy'
+
     container 'community.wave.seqera.io/library/multiqc_subread:195fdfec27d6a190'
 
 
@@ -123,9 +150,12 @@ workflow {
     //fastq_ch = Channel.fromFilePairs(params.reads)
     strand = Channel.of(params.strand)
 
-// Trimminng 
-
-TRIM_GALORE(fastq_ch).set{trimmed}
+// Trimming
+    if (params.use_fastp) {
+        TRIM_FASTP(fastq_ch).set { trimmed }
+    } else {
+        TRIM_GALORE(fastq_ch).set { trimmed }
+    }
 
 
 // FASRQC & MULTIQC
@@ -149,9 +179,4 @@ bams.bams.collect().set{finalbams}
 
 FEATURE_COUNT (finalbams,ref_gtf,strand)
 
-//Test
-//ref_fasta.view()
-//ref_gtf.view()
-//strand.view()
-//fastq_ch.view()
 }
