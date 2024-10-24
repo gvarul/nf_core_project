@@ -1,3 +1,22 @@
+# Tried to implement the Logo at the begeining 
+/*
+def nfCoreLogo(monochrome_logs=true) {
+    def colors = logColours(monochrome_logs) as Map
+    String.format(
+        """\n
+        ${dashedLine(monochrome_logs)}
+                                                ${colors.green},--.${colors.black}/${colors.green},-.${colors.reset}
+        ${colors.blue}        ___     __   __   __   ___     ${colors.green}/,-._.--~\'${colors.reset}
+        ${colors.blue}  |\\ | |__  __ /  ` /  \\ |__) |__         ${colors.yellow}}  {${colors.reset}
+        ${colors.blue}  | \\| |       \\__, \\__/ |  \\ |___     ${colors.green}\\`-._,-`-,${colors.reset}
+                                                ${colors.green}`._,._,\'${colors.reset}
+        ${colors.purple}  ${workflow.manifest.name} ${getWorkflowVersion()}${colors.reset}
+        ${dashedLine(monochrome_logs)}
+        """.stripIndent()
+    )
+}
+
+*/
 
 def samplesheet = file(params.sample_sheet)
 
@@ -7,10 +26,53 @@ def samplesheet = file(params.sample_sheet)
         .map { row -> tuple(row.sampleid, file(row.read1), file(row.read2)) }
         .set { fastq_ch }
 
-process TRIM_GALORE {
-    publishDir "TRIMMED", mode: 'copy'
+process VERSIONS {
+    publishDir "OUTPUT", mode: 'copy'
 
-    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
+    container 'container community.wave.seqera.io/library/fastp_fastqc_multiqc_star_pruned:040af6e70566a925'
+
+    output:
+    path "versions.txt"
+
+    script:
+    """
+    echo "Tool & Versions " > versions.txt
+    echo "=========================" >> versions.txt
+    echo "" >> versions.txt
+
+    echo "multiqc Version:" >> versions.txt
+    fastqc --version >> versions.txt
+    echo "" >> versions.txt
+
+    echo "fastqc Version:" >> versions.txt
+    multiqc --version >> versions.txt
+    echo "" >> versions.txt
+
+    echo "trim_galore Version:" >> versions.txt
+    trim_galore --version >> versions.txt
+    echo "" >> versions.txt
+
+    echo "fastp Version:" >> versions.txt
+    fastp --version >> versions.txt
+    echo "" >> versions.txt
+
+    echo "STAR Version:" >> versions.txt
+    STAR --version >> versions.txt
+    echo "" >> versions.txt
+
+    echo "featureCounts Version:" >> versions.txt
+    featureCounts -v >> versions.txt
+    echo "" >> versions.txt
+    
+
+
+    """
+}
+
+process TRIM_GALORE {
+    publishDir "OUTPUT/TRIMMED", mode: 'copy'
+
+    container 'container community.wave.seqera.io/library/fastp_fastqc_multiqc_star_pruned:040af6e70566a925'
 
 
     input:
@@ -28,9 +90,9 @@ process TRIM_GALORE {
 
 process TRIM_FASTP {
 
-container 'community.wave.seqera.io/library/fastp:0.23.4--f8cefc1e5f7a782e'
+container 'container community.wave.seqera.io/library/fastp_fastqc_multiqc_star_pruned:040af6e70566a925'
 
-publishDir "TRIMMED", mode:'copy'
+publishDir "OUTPUT/TRIMMED", mode:'copy'
 
 input: 
 	tuple val(sampleid), path(read1), path(read2)
@@ -48,9 +110,9 @@ fastp -i ${read1} -I ${read2} -o ${sampleid}_trimmed_1.fq.gz -O ${sampleid}_trim
 }
 
 process QC{
-    publishDir "QC_REPORT", mode: 'copy'
+    publishDir "OUTPUT/QC_REPORT", mode: 'copy'
 
-    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
+    container 'container community.wave.seqera.io/library/fastp_fastqc_multiqc_star_pruned:040af6e70566a925'
 
 
     input:
@@ -72,9 +134,9 @@ process QC{
 
 process STAR_INDEX {
 
-    publishDir "REF_INDEX", mode:'copy'
+    publishDir "OUTPUT/REF_INDEX", mode:'copy'
 
-    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
+    container 'container community.wave.seqera.io/library/fastp_fastqc_multiqc_star_pruned:040af6e70566a925'
 
     input:
         path(ref_fasta)
@@ -95,9 +157,9 @@ process STAR_INDEX {
 }
 
 process STAR_MAPPING {
-    publishDir "MAPPING", mode: 'copy'
+    publishDir "OUTPUT/MAPPING", mode: 'copy'
     
-    container 'community.wave.seqera.io/library/fastp_fastqc_multiqc_salmon_pruned:02a30cb5ef85c326'
+    container 'container community.wave.seqera.io/library/fastp_fastqc_multiqc_star_pruned:040af6e70566a925'
 
     cpus 3
 
@@ -118,9 +180,9 @@ process STAR_MAPPING {
 }
 
 process FEATURE_COUNT {
-    publishDir "READ_COUNT", mode: 'copy'
+    publishDir "OUTPUT/READ_COUNT", mode: 'copy'
 
-    container 'community.wave.seqera.io/library/multiqc_subread:195fdfec27d6a190'
+    container 'container community.wave.seqera.io/library/fastp_fastqc_multiqc_star_pruned:040af6e70566a925'
 
 
     input:
@@ -150,6 +212,8 @@ workflow {
     //fastq_ch = Channel.fromFilePairs(params.reads)
     strand = Channel.of(params.strand)
 
+    VERSIONS()
+
 // Trimming
     if (params.use_fastp) {
         TRIM_FASTP(fastq_ch).set { trimmed }
@@ -160,23 +224,23 @@ workflow {
 
 // FASRQC & MULTIQC
 
-raw_fastq=fastq_ch.map{it -> it[1]}.flatten().collect()
-trimmed_fastq=trimmed.trimmed.flatten().collect()
-raw_fastq.mix(trimmed_fastq).collect() | QC 
+    raw_fastq=fastq_ch.map{it -> it[1]}.flatten().collect()
+    trimmed_fastq=trimmed.trimmed.flatten().collect()
+    raw_fastq.mix(trimmed_fastq).collect() | QC 
 
 
 
 
 
-STAR_INDEX(ref_fasta,ref_gtf).set{star_index}
+    STAR_INDEX(ref_fasta,ref_gtf).set{star_index}
 
-trimmed.trimmed.map{read1,read2 -> tuple("${read1.getFileName()}".split("_trimmed")[0],read1,read2 ) }
-|combine(star_index.index)|STAR_MAPPING
-|set{bams}
+    trimmed.trimmed.map{read1,read2 -> tuple("${read1.getFileName()}".split("_trimmed")[0],read1,read2 ) }
+    |combine(star_index.index)|STAR_MAPPING
+    |set{bams}
 
 
-bams.bams.collect().set{finalbams}
+    bams.bams.collect().set{finalbams}
 
-FEATURE_COUNT (finalbams,ref_gtf,strand)
+    FEATURE_COUNT (finalbams,ref_gtf,strand)
 
 }
